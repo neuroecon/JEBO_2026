@@ -1,0 +1,55 @@
+# This file may be used to create an environment using:
+# $ conda create --name <env> --file <this file>
+# platform: linux-64
+# created-by: conda 24.9.2
+@EXPLICIT
+https://repo.anaconda.com/pkgs/free/linux-64/_libgcc_mutex-0.1-free.tar.bz2#f7d7639c8485ae4701aeb6add534a774
+https://repo.anaconda.com/pkgs/free/linux-64/blas-1.0-mkl.tar.bz2#751c2c5b239a728db05f91374aaac3a1
+https://repo.anaconda.com/pkgs/free/linux-64/expat-2.1.0-0.tar.bz2#13df3cb2b432de77be2c13103c39692c
+https://repo.anaconda.com/pkgs/free/linux-64/icu-54.1-0.tar.bz2#c1d5cbeb7127a672211dd56b28603a8f
+https://repo.anaconda.com/pkgs/free/linux-64/jpeg-9b-0.tar.bz2#5e29fdb319af276a9336971b481ea03d
+https://repo.anaconda.com/pkgs/free/linux-64/libffi-3.2.1-1.tar.bz2#b8297fc22fd5f713e619329001546adc
+https://repo.anaconda.com/pkgs/free/linux-64/libgfortran-3.0.0-1.tar.bz2#d7c7e92a8ccc518709474dd3eda896b9
+https://repo.anaconda.com/pkgs/free/linux-64/libiconv-1.14-0.tar.bz2#70cf265a73da373e088724afa51aecbf
+https://repo.anaconda.com/pkgs/free/linux-64/libxcb-1.12-1.tar.bz2#3375e9a852d4ae539fbbb6a948eb2f7e
+https://repo.anaconda.com/pkgs/free/linux-64/mkl-2017.0.3-0.tar.bz2#76cfa5d21e73db338ffccdbe0af8a727
+https://repo.anaconda.com/pkgs/free/linux-64/openssl-1.0.2l-0.tar.bz2#4b777ebd155103c6ca3c8abff32a95b6
+https://repo.anaconda.com/pkgs/free/linux-64/pixman-0.34.0-0.tar.bz2#f97f025b386f0f482714261e4d1f66dd
+https://repo.anaconda.com/pkgs/free/linux-64/readline-6.2-2.tar.bz2#d050607fb2934282470d06872e0e6cce
+https://repo.anaconda.com/pkgs/free/linux-64/sqlite-3.13.0-0.tar.bz2#ceb2d63b0dc2ec8a2e1da9378f07ab98
+https://repo.anaconda.com/pkgs/free/linux-64/tk-8.5.18-0.tar.bz2#902f0fd689a01a835c9e69aefbe58fdd
+https://repo.anaconda.com/pkgs/free/linux-64/zlib-1.2.11-0.tar.bz2#34b5be58250b2f53176640a8ae8723a7
+https://repo.anaconda.com/pkgs/free/linux-64/dbus-1.10.20-0.tar.bz2#ce535a7d633232dc2e184203d5f93d1d
+https://repo.anaconda.com/pkgs/free/linux-64/libgcc-5.2.0-0.tar.bz2#5b5e6ac392b45d1114e289eb9a73f85d
+https://repo.anaconda.com/pkgs/free/linux-64/libpng-1.6.30-1.tar.bz2#f3a3994c3af6cf4f63da980d5d66c4db
+https://repo.anaconda.com/pkgs/free/linux-64/libxml2-2.9.4-0.tar.bz2#750025fc9f5f623446bdafa7c726c61d
+https://repo.anaconda.com/pkgs/free/linux-64/pcre-8.39-1.tar.bz2#62c472936cea126dfb939ae5a1388004
+https://repo.anaconda.com/pkgs/free/linux-64/python-2.7.13-0.tar.bz2#75517b0f5176e9cf704befa1cac3be23
+https://repo.anaconda.com/pkgs/free/linux-64/certifi-2016.2.28-py27_0.tar.bz2#c12007aa778e54257d22201a8f1de582
+https://repo.anaconda.com/pkgs/free/linux-64/freetype-2.5.5-2.tar.bz2#cb3923944a73c59b557cd85a8c55fcb3
+https://repo.anaconda.com/pkgs/free/linux-64/glib-2.50.2-1.tar.bz2#a9e31763e3c9a330a3273e4f75829c15
+https://repo.anaconda.com/pkgs/free/linux-64/numpy-1.11.3-py27_0.tar.bz2#cce8af7961ca8d4f39ee5678ae8da04e
+https://repo.anaconda.com/pkgs/free/linux-64/pyparsing-2.2.0-py27_0.tar.bz2#0cb1ee8d8c89f53ec41e7c8f688feb4e
+https://repo.anaconda.com/pkgs/free/linux-64/pytz-2017.2-py27_0.tar.bz2#4640efa8adde9bc89c9ca51d27c95d3d
+https://repo.anaconda.com/pkgs/free/linux-64/sip-4.18-py27_0.tar.bz2#d8443d26dcaf83587f21eedb9c447da2
+https://repo.anaconda.com/pkgs/free/linux-64/six-1.10.0-py27_0.tar.bz2#78d229dce568dd4bac1d88328f822fc5
+https://repo.anaconda.com/pkgs/free/linux-64/wheel-0.29.0-py27_0.tar.bz2#35cf0da93616ea8c495ce1d143316d7c
+https://repo.anaconda.com/pkgs/free/linux-64/cycler-0.10.0-py27_0.tar.bz2#5fa3237284832ffeaeded70c6b6953e6
+https://repo.anaconda.com/pkgs/free/linux-64/fontconfig-2.12.1-3.tar.bz2#39f039da0f42da4937c6e1840a86d2d0
+https://repo.anaconda.com/pkgs/free/linux-64/gstreamer-1.8.0-0.tar.bz2#5a5e2aff3d6bd7f4d69a60140ed0a571
+https://repo.anaconda.com/pkgs/free/linux-64/patsy-0.4.1-py27_0.tar.bz2#b78c3447b7cfab154b81571d2b011879
+https://repo.anaconda.com/pkgs/free/linux-64/python-dateutil-2.6.1-py27_0.tar.bz2#2516334e880ec93dd002d35afae17d9f
+https://repo.anaconda.com/pkgs/free/linux-64/scipy-0.18.1-np111py27_1.tar.bz2#6525e6da5c0d55eea576a32534348124
+https://repo.anaconda.com/pkgs/free/linux-64/setuptools-36.4.0-py27_1.tar.bz2#8e3885bfb279698bca458febd1c09fb1
+https://repo.anaconda.com/pkgs/free/linux-64/cairo-1.14.8-0.tar.bz2#c373c512434e418cdfee4e6cd9f0a294
+https://repo.anaconda.com/pkgs/free/linux-64/gst-plugins-base-1.8.0-0.tar.bz2#9c19173e0e6b8eaeadfb604000169f78
+https://repo.anaconda.com/pkgs/free/linux-64/pandas-0.19.2-np111py27_1.tar.bz2#4fc03d68939499bc86f791d230b85d9b
+https://repo.anaconda.com/pkgs/free/linux-64/pip-9.0.1-py27_1.tar.bz2#f5266886d7cf83558b806762f2278145
+https://repo.anaconda.com/pkgs/free/linux-64/pymc-2.3.6-np111py27_2.tar.bz2#ccf36f90f6541a7dd935bf861502a51b
+https://repo.anaconda.com/pkgs/free/linux-64/pycairo-1.10.0-py27_0.tar.bz2#fad9b73e4e310fb1a2169d78452ce9ec
+https://repo.anaconda.com/pkgs/free/linux-64/qt-5.6.2-5.tar.bz2#554b5852aa826df509d487ac1d772e20
+https://repo.anaconda.com/pkgs/free/linux-64/statsmodels-0.6.1-np111py27_1.tar.bz2#6c0610a8f5d3510a213a2416eaae6f9c
+https://repo.anaconda.com/pkgs/free/linux-64/pyqt-5.6.0-py27_2.tar.bz2#80cc234372e1512884875ccb01d1cb21
+https://repo.anaconda.com/pkgs/free/linux-64/matplotlib-1.5.3-np111py27_1.tar.bz2#b767d8c38f197c4e05ebccd66cfcd095
+https://conda.anaconda.org/pymc/linux-64/kabuki-0.6.0-py27_0.tar.bz2#c7f656183d3a5b570ad9982001aaaea8
+https://conda.anaconda.org/pymc/linux-64/hddm-0.6.0-py27_0.tar.bz2#b0bd0eea993b4b5202075406c2c8c8cf

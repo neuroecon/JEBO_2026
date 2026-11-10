@@ -1,0 +1,998 @@
+---
+title: "Code for JEBO: Plots and Stats"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+
+# Libraries, Reading in Data, Parameters
+
+```{r,comment=NA,message=FALSE,warning=FALSE,echo=FALSE}
+library(tidyverse)
+library(BayesFactor)
+library(emmeans)
+```
+
+## Colors
+
+```{r,comment=NA}
+color_ddm = 'royalblue'
+color_logit = 'red'
+color_discount_0 = 'white'
+color_discount_25 = 'grey'
+color_discount_99 = 'grey40'
+```
+
+## Data
+
+```{r,comment=NA,message=FALSE,warning=FALSE,echo=TRUE}
+date_var <- '170923'
+date_choice_name <- paste(date_var, '_choice_data', sep="")
+date_analysis_name <- paste(date_var, '_matched_data', sep="")
+estimates_file_name <- 'estimates'
+
+sess3_2afc_data <- read_csv(file.path(date_analysis_name,'session3_2afc_individual_level_predicted.csv'))
+sess3_2afc_pred <- read_csv(file.path(date_analysis_name,'session3_2afc_data_and_estimates_matched_at_individual_level.csv'))
+sess3_2afc_estimates <- read_csv(file.path(estimates_file_name,'estimates_63_subjects.csv'))
+
+sess5_2afc_data <- read_csv(file.path(date_choice_name,'session5_2afc_data.csv'))
+sess5_2afc_pred <- read_csv(file.path(date_analysis_name,'session5_2afc_market_share_predicted.csv'))
+
+sess4_3afc_pred <- read_csv(file.path(date_analysis_name,'session4_3afc_market_share_predicted.csv'))
+
+share_2afc <- read_csv(file.path(date_analysis_name,'session5_2afc_market_share.csv'))
+share_3afc <- read_csv(file.path(date_analysis_name,'session4_3afc_market_share.csv'))
+
+merged_data <- read_csv(file.path(date_analysis_name,'170923_scaled_prediction_merge.csv'))
+
+cannib_3afc <- read_csv(file.path(date_analysis_name,'240414_sess5_3afc_distance_LogitVsDDM_cannibalization_data_all.csv'))
+```
+
+# AFC Within-Subjects
+
+```{r,comment=NA,message=FALSE,warning=FALSE,echo=TRUE}
+date_var <- "X" #insert new date here
+plots_dir <- paste0(date_var,"_plots")
+
+if (!dir.exists(plots_dir)) {
+  dir.create(plots_dir)
+}
+setwd(plots_dir)
+
+sess3_2afc_data$discount1_str = as.character(sess3_2afc_data$discount1)
+sess3_2afc_data$discount2_str = as.character(sess3_2afc_data$discount2)
+sess3_2afc_data$market_string = paste(sess3_2afc_data$brand1,sess3_2afc_data$brand2,sess3_2afc_data$type1, sess3_2afc_data$type2,sess3_2afc_data$discount1_str,sess3_2afc_data$discount2_str, sep = "_")
+
+
+sess3_2afc_data$ae_ddm = abs(sess3_2afc_data$response - sess3_2afc_data$prob_ddm)
+sess3_2afc_data$ae_logit = abs(sess3_2afc_data$response - sess3_2afc_data$prob_logit)
+sess3_2afc_data$sae_ddm = abs(sess3_2afc_data$response - sess3_2afc_data$prob_ddm)^2
+sess3_2afc_data$sae_logit = abs(sess3_2afc_data$response - sess3_2afc_data$prob_logit)^2
+
+
+sess3_2afc_subject <- sess3_2afc_data %>% group_by(subject) %>%
+                      summarize(mae_ddm = mean(ae_ddm),
+                                mae_logit = mean(ae_logit),
+                                se_ddm = sd(ae_ddm) / sqrt(n()),
+                                se_logit = sd(ae_logit) / sqrt(n()),
+                                rmsae_ddm = sqrt(mean(sae_ddm)),
+                                rmsae_logit = sqrt(mean(sae_logit)),
+                                sse_ddm = sd(ae_ddm) / sqrt(n()),
+                                sse_logit = sd(ae_logit) / sqrt(n())
+                                )
+
+sess3_2afc_subject <- sess3_2afc_subject %>% left_join(sess3_2afc_estimates, by = "subject")
+save_csv_name <- str_c(date_var, "_sess3_2afc_subj_distance_parameters.csv")
+write_csv(sess3_2afc_subject,save_csv_name)
+
+p_2afc_subj_rmsae <- ggplot(data = sess3_2afc_subject, mapping = aes(x = rmsae_ddm, y = rmsae_logit)) + 
+  geom_point() + 
+  geom_errorbar(aes(xmin = rmsae_ddm - sse_ddm, xmax = rmsae_ddm + sse_ddm),
+                width = 0) +
+  geom_errorbar(aes(ymin = rmsae_logit - sse_logit, ymax = rmsae_logit + sse_logit),
+                width = 0) +  
+  xlim(0.175,0.8) +
+  ylim(0.175,0.8) +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed") +
+  labs(x = "Error: DDM", y = "Error: Logit", title = "Comparison of Prediction Accuracy by Subject") + 
+  theme_minimal() + theme(text = element_text(size = 18)) 
+p_2afc_subj_rmsae
+save_name_png <- str_c(date_var, "_scatter_plot_subj_rmsae_2afc.png")
+ggsave(save_name_png,plot = p_2afc_subj_rmsae,device="png")
+
+t.test(sess3_2afc_subject$rmsae_ddm,sess3_2afc_subject$rmsae_logit,paired=TRUE)
+sess3_2afc_subject$rmsae_dif <- sess3_2afc_subject$rmsae_logit - sess3_2afc_subject$rmsae_ddm
+mean(sess3_2afc_subject$rmsae_logit)
+mean(sess3_2afc_subject$rmsae_ddm)
+(mean(sess3_2afc_subject$rmsae_logit)-mean(sess3_2afc_subject$rmsae_ddm))/mean(sess3_2afc_subject$rmsae_logit)
+bf = ttestBF(x = sess3_2afc_subject$rmsae_dif)
+bf
+chains = posterior(bf, iterations = 10000)
+summary(chains)
+
+sess3_2afc_market <- sess3_2afc_data %>% group_by(market_string) %>%
+                      summarize(mae_ddm = mean(ae_ddm),
+                                mae_logit = mean(ae_logit),
+                                se_ddm = sd(ae_ddm) / sqrt(n()),
+                                se_logit = sd(ae_logit) / sqrt(n()),
+                                rmsae_ddm = sqrt(mean(sae_ddm)),
+                                rmsae_logit = sqrt(mean(sae_logit)),
+                                sse_ddm = sd(ae_ddm) / sqrt(n()),
+                                sse_logit = sd(ae_logit) / sqrt(n())
+                                )
+
+p_2afc_market_rmsae <- ggplot(data = sess3_2afc_market, mapping = aes(x = rmsae_ddm, y = rmsae_logit)) + 
+  geom_point(color = 'darkgrey') + 
+  geom_errorbar(aes(xmin = rmsae_ddm - sse_ddm, xmax = rmsae_ddm + sse_ddm),
+                width = 0, color = 'darkgrey') +
+  geom_errorbar(aes(ymin = rmsae_logit - sse_logit, ymax = rmsae_logit + sse_logit),
+                width = 0, color = 'darkgrey') +  
+  xlim(0.12,0.64) +
+  ylim(0.12,0.64) +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed") +
+  labs(x = "Error: DDM", y = "Error: Logit", title = "Comparison of Prediction Accuracy by Market") + 
+  theme_minimal() + theme(text = element_text(size = 18)) 
+p_2afc_market_rmsae
+save_name_png <- str_c(date_var, "_scatter_plot_market_rmsae_2afc.png")
+ggsave(save_name_png,plot = p_2afc_market_rmsae,device="png")
+
+sess3_2afc_market <- sess3_2afc_market %>%
+  mutate(discount_factor = case_when(str_detect(market_string,pattern = "25") ~ "25",
+                           str_detect(market_string,pattern = "99") ~ "99",
+                           str_detect(market_string,pattern = "_0_0") ~ "00"),
+         mae_dif = mae_logit - mae_ddm)
+
+sess3_2afc_market$rmsae_dif <- sess3_2afc_market$rmsae_logit - sess3_2afc_market$rmsae_ddm
+t.test(sess3_2afc_market$rmsae_ddm,sess3_2afc_market$rmsae_logit,paired=TRUE)
+sess3_2afc_market$rmsae_dif <- sess3_2afc_market$rmsae_logit - sess3_2afc_market$rmsae_ddm
+mean(sess3_2afc_market$rmsae_logit)
+mean(sess3_2afc_market$rmsae_ddm)
+(mean(sess3_2afc_market$rmsae_logit)-mean(sess3_2afc_market$rmsae_ddm))/mean(sess3_2afc_market$rmsae_logit)
+bf = ttestBF(x = sess3_2afc_market$rmsae_dif)
+bf
+chains = posterior(bf, iterations = 10000)
+summary(chains)
+mod_2afc_market <- lm(rmsae_dif ~ discount_factor, data = sess3_2afc_market)
+summary(mod_2afc_market)
+emm <- emmeans(mod_2afc_market, ~ discount_factor)
+pairs(emm, adjust = "none")
+
+sess3_2afc_market_barplot <- sess3_2afc_market %>% 
+  group_by(discount_factor) %>% summarize(mean_rmsae_dif = mean(rmsae_dif),
+                                   sd_error = sd(rmsae_dif),
+                                   n_error = n(),
+                                   SE_error = sd(rmsae_dif) / sqrt(n()))
+sess3_2afc_market_barplot
+
+p_2afc_market_barplot <- ggplot(sess3_2afc_market_barplot, aes(discount_factor, mean_rmsae_dif)) +
+  geom_col(aes(fill = discount_factor, color = discount_factor),show.legend = FALSE) +
+  scale_color_manual(labels = c("No Discount","$0.25 Discount","$0.99 Discount"),values=c('black',color_discount_25,color_discount_99)) +
+  scale_fill_manual(labels = c("No Discount","$0.25 Discount","$0.99 Discount"),values=c(color_discount_0,color_discount_25,color_discount_99)) +
+  geom_errorbar(aes(ymin = mean_rmsae_dif - SE_error, ymax = mean_rmsae_dif + SE_error), width = 0.2, size = 1) +
+  scale_x_discrete(labels=c("No Discount","$0.25 Discount","$0.99 Discount")) +
+  labs(x = "Discount", y = "Error (Logit - DDM)", title = "Error Difference in Within Consumer Predictions") +
+  theme_minimal() + theme(text = element_text(size = 16),
+                          plot.title = element_text(hjust = 0.5))
+p_2afc_market_barplot
+save_name_png <- str_c(date_var, "_barplot_marker_error_2afc.png")
+ggsave(save_name_png,plot = p_2afc_market_barplot,device="png")
+```
+
+```{r,comment = NA, echo = TRUE, warning = FALSE}
+setwd(plots_dir)
+
+attach(sess3_2afc_pred)
+sess3_2afc_pred$competitiveness= prob_d 
+sess3_2afc_pred$ddm_advantage= deviation_l-deviation_d
+detach(sess3_2afc_pred)
+
+sess3_2afc_data$ddm_advantage <- sess3_2afc_data$ae_logit - sess3_2afc_data$ae_ddm
+
+p_2afc_prob_error <- ggplot(data = sess3_2afc_data, mapping = aes(x = prob_ddm, y = ddm_advantage)) + geom_hline(yintercept=0, linetype="dashed", color = "black") +
+  geom_smooth(color = 'black', method = 'loess', span = 0.60) +
+  labs(x = "DDM Choice Probability", y = "Error (Logit - DDM)", title = "DDM Advantage by Choice Probability") +
+  theme_minimal() + theme(text = element_text(size = 18), 
+                                  plot.title = element_text(hjust = 0.5))
+p_2afc_prob_error
+save_name_png <- str_c(date_var, "_prob_error_plot_2afc.png")
+ggsave(save_name_png,plot = p_2afc_prob_error,device="png")
+```
+
+# 2AFC Across-Subjects
+
+```{r,comment=NA,message=FALSE,warning=FALSE,echo=TRUE}
+sess5_2afc_pred$discount <- "No Discount"
+sess5_2afc_pred[(sess5_2afc_pred$discount1 == 99 | sess5_2afc_pred$discount2 == 99),"discount"] <- "99 Discount"
+sess5_2afc_pred[(sess5_2afc_pred$discount1 == 25 | sess5_2afc_pred$discount2 == 25),"discount"] <- "25 Discount"
+
+sess5_2afc_pred <- sess5_2afc_pred %>% rowwise() %>% 
+  mutate(prob_max  = ifelse(prob_1_observed > prob_2_observed, prob_1_observed, prob_2_observed),
+         prob_predict_ddm = ifelse(prob_1_observed > prob_2_observed, prob_1_ddm, prob_2_ddm),
+         prob_predict_logit = ifelse(prob_1_observed > prob_2_observed, prob_1_logit, prob_2_logit))
+
+
+sess5_2afc_pred_plot <- sess5_2afc_pred %>%
+  select(prob_1_observed, prob_1_ddm, prob_1_logit)
+
+sess5_2afc_pred_plot_long <- sess5_2afc_pred_plot %>% 
+  pivot_longer(cols = c("prob_1_ddm","prob_1_logit"), 
+               names_to = "model", values_to = "prob_predict")
+
+sess5_2afc_error_plot <- sess5_2afc_pred %>%
+  select(logit_distance,ddm_distance,discount)
+
+sess5_2afc_error_plot_long <- sess5_2afc_error_plot %>% 
+  pivot_longer(cols = c("logit_distance","ddm_distance"), 
+               names_to = "model", values_to = "distance")
+
+sess5_2afc_pred$distance_dif <- sess5_2afc_pred$logit_distance - sess5_2afc_pred$ddm_distance
+summary(sess5_2afc_pred$distance_dif)
+mean(sess5_2afc_pred$distance_dif)
+mean(sess5_2afc_pred$logit_distance)
+mean(sess5_2afc_pred$ddm_distance)
+(mean(sess5_2afc_pred$logit_distance)-mean(sess5_2afc_pred$ddm_distance))/mean(sess5_2afc_pred$logit_distance)
+t.test(sess5_2afc_pred$distance_dif)
+bf = ttestBF(x = sess5_2afc_pred$distance_dif)
+bf
+chains = posterior(bf, iterations = 10000)
+summary(chains)
+```
+
+```{r,comment=NA,message=FALSE,warning=FALSE,echo=TRUE}
+setwd(plots_dir)
+
+p_forecasting_share_2afc <- ggplot(data = sess5_2afc_pred_plot_long, 
+       mapping = aes(x = prob_1_observed, y = prob_predict, color = model)) + 
+       geom_point(mapping = aes(shape = model,size = 2)) +
+       geom_abline(intercept = 0, slope = 1, linetype = "dashed") + 
+       scale_shape_manual(labels = c("DDM","Logit"), values=c(16, 5))+
+       scale_color_manual(labels = c("DDM","Logit"), values = c(color_ddm, color_logit)) +
+       labs(x = "Observed Choice Share", y = "Predicted Choice Share", title = "Forecasting of Binary Choice Shares",
+       color = "Model", shape = "Model") +
+       guides(size = FALSE) +  
+       theme_minimal() + theme(text = element_text(size = 18),
+                               plot.title = element_text(hjust = 0.5))
+p_forecasting_share_2afc
+save_name_png <- str_c(date_var, "_forecasting_share_2afc.png")
+ggsave(save_name_png,plot = p_forecasting_share_2afc,device="png")
+
+
+summary_2afc_error_bar <- sess5_2afc_error_plot_long %>% 
+  group_by(model) %>% # the grouping variable
+  summarise(
+    mean_error = mean(distance), # calculates the mean of each group
+    sd_error = sd(distance), # calculates the standard deviation of each group
+    n_error = n(), # calculates the sample size per group
+    SE_error = sd(distance) / sqrt(n())
+  ) # calculates the standard error of each group
+
+
+p_forecasting_error_2afc <- ggplot(summary_2afc_error_bar, aes(model, mean_error)) +
+  geom_col(aes(fill = model,color=model)) +
+  scale_color_manual(labels = c("DDM","Logit"),values=c(color_ddm, color_logit)) +
+  scale_fill_manual(labels = c("DDM","Logit"),values=c(color_ddm, "white")) +
+  geom_errorbar(aes(ymin = mean_error - SE_error, ymax = mean_error + SE_error), width = 0.2, size = 1) +
+  scale_x_discrete(labels=c("DDM","Logit")) +
+  labs(x = "Model", y = "Average Error", color = "Model", fill = "Model", title = "Error in Binary Choice Forecasting") +
+  theme_minimal() + theme(text = element_text(size = 18),
+                               plot.title = element_text(hjust = 0.5))
+p_forecasting_error_2afc
+save_name_png <- str_c(date_var, "_forecasting_error_2afc.png")
+ggsave(save_name_png,plot = p_forecasting_error_2afc,device="png")
+```
+
+## 2AFC Revenue
+
+```{r,comment = NA, warninge = FALSE, echo = TRUE}
+setwd(plots_dir)
+
+sess5_2afc_pred$price_1 <- 300 - sess5_2afc_pred$discount1
+sess5_2afc_pred$price_2 <- 300 - sess5_2afc_pred$discount2
+
+sess5_2afc_pred$revenue_logit_1 <- sess5_2afc_pred$price_1*sess5_2afc_pred$prob_1_logit
+sess5_2afc_pred$revenue_logit_2 <- sess5_2afc_pred$price_2*sess5_2afc_pred$prob_2_logit
+sess5_2afc_pred$revenue_logit <- sess5_2afc_pred$revenue_logit_1 + sess5_2afc_pred$revenue_logit_2
+
+sess5_2afc_pred$revenue_ddm_1 <- sess5_2afc_pred$price_1*sess5_2afc_pred$prob_1_ddm
+sess5_2afc_pred$revenue_ddm_2 <- sess5_2afc_pred$price_2*sess5_2afc_pred$prob_2_ddm
+sess5_2afc_pred$revenue_ddm <- sess5_2afc_pred$revenue_ddm_1 + sess5_2afc_pred$revenue_ddm_2
+
+sess5_2afc_pred$revenue_true_1 <- sess5_2afc_pred$price_1*sess5_2afc_pred$prob_1_observed
+sess5_2afc_pred$revenue_true_2 <- sess5_2afc_pred$price_2*sess5_2afc_pred$prob_2_observed
+sess5_2afc_pred$revenue_true <- sess5_2afc_pred$revenue_true_1 + sess5_2afc_pred$revenue_true_2
+
+sess5_2afc_pred$revenue_dif_logit_1 <- abs(sess5_2afc_pred$revenue_true_1 - sess5_2afc_pred$revenue_logit_1)
+sess5_2afc_pred$revenue_dif_logit_2 <- abs(sess5_2afc_pred$revenue_true_2 - sess5_2afc_pred$revenue_logit_2)
+sess5_2afc_pred$revenue_dif_logit <- sess5_2afc_pred$revenue_dif_logit_1 + sess5_2afc_pred$revenue_dif_logit_2
+
+sess5_2afc_pred$revenue_dif_ddm_1 <- abs(sess5_2afc_pred$revenue_true_1 - sess5_2afc_pred$revenue_ddm_1)
+sess5_2afc_pred$revenue_dif_ddm_2 <- abs(sess5_2afc_pred$revenue_true_2 - sess5_2afc_pred$revenue_ddm_2)
+sess5_2afc_pred$revenue_dif_ddm <- sess5_2afc_pred$revenue_dif_ddm_1 + sess5_2afc_pred$revenue_dif_ddm_2
+
+sess5_2afc_pred$revenue_dif <- sess5_2afc_pred$revenue_dif_logit - sess5_2afc_pred$revenue_dif_ddm
+sess5_2afc_pred$revenue_dif_perc <- 100*(sess5_2afc_pred$revenue_dif/sess5_2afc_pred$revenue_true)
+
+summary_2afc_rev_pred <- sess5_2afc_pred %>% 
+  group_by(discount) %>% summarize(mean_rev_perc_dif = mean(revenue_dif_perc),
+                                   sd_error = sd(revenue_dif_perc),
+                                   n_error = n(),
+                                   SE_error = sd(revenue_dif_perc) / sqrt(n()))
+
+summary_2afc_rev_pred$discount <- fct_relevel(summary_2afc_rev_pred$discount,
+                                                       "No Discount","25 Discount","99 Discount")
+
+p_forecasting_revenue_2afc <- ggplot(summary_2afc_rev_pred, aes(discount, mean_rev_perc_dif)) +
+  geom_col(aes(fill = discount, color = discount),show.legend = FALSE) +
+  scale_color_manual(labels = c("No Discount","$0.25 Discount","$0.99 Discount"),values=c('black',color_discount_25,color_discount_99)) +
+  scale_fill_manual(labels = c("No Discount","$0.25 Discount","$0.99 Discount"),values=c(color_discount_0,color_discount_25,color_discount_99)) +
+  geom_errorbar(aes(ymin = mean_rev_perc_dif - SE_error, ymax = mean_rev_perc_dif + SE_error), width = 0.2, size = 1) +
+  scale_x_discrete(labels=c("No Discount","$0.25 Discount","$0.99 Discount")) +
+  labs(x = "Discount", y = "Average Percentage Improvement for DDM", title = "Revenue in Binary Choice") +
+  theme_minimal() + theme(text = element_text(size = 18),
+                          plot.title = element_text(hjust = 0.5))
+p_forecasting_revenue_2afc
+save_name_png <- str_c(date_var, "_forecasting_revenue_2afc.png")
+ggsave(save_name_png,plot = p_forecasting_revenue_2afc,device="png")
+
+mean(sess5_2afc_pred$revenue_dif_perc)
+
+summary_2afc_pred_barplot <- sess5_2afc_pred %>% 
+  group_by(discount) %>% summarize(mean_distance_dif = mean(distance_dif),
+                                   sd_error = sd(distance_dif),
+                                   n_error = n(),
+                                   SE_error = sd(distance_dif) / sqrt(n()))
+summary_2afc_pred_barplot$discount <- fct_relevel(summary_2afc_pred_barplot$discount,
+                                                       "No Discount","25 Discount","99 Discount")
+summary_2afc_pred_barplot
+
+p_forecasting_pred_2afc_barplot <- ggplot(summary_2afc_pred_barplot, aes(discount, mean_distance_dif)) +
+  geom_col(aes(fill = discount, color = discount),show.legend = FALSE) +
+  scale_color_manual(labels = c("No Discount","$0.25 Discount","$0.99 Discount"),values=c('black',color_discount_25,color_discount_99)) +
+  scale_fill_manual(labels = c("No Discount","$0.25 Discount","$0.99 Discount"),values=c(color_discount_0,color_discount_25,color_discount_99)) +
+  geom_errorbar(aes(ymin = mean_distance_dif - SE_error, ymax = mean_distance_dif + SE_error), width = 0.2, size = 1) +
+  scale_x_discrete(labels=c("No Discount","$0.25 Discount","$0.99 Discount")) +
+  labs(x = "Discount", y = "Error (Logit - DDM)", title = "Forecasting Error Difference in Binary Choice") +
+  theme_minimal() + theme(text = element_text(size = 18),
+                          plot.title = element_text(hjust = 0.5))
+p_forecasting_pred_2afc_barplot
+save_name_png <- str_c(date_var, "_forecasting_pred_2afc_barplot.png")
+ggsave(save_name_png,plot = p_forecasting_pred_2afc_barplot,device="png")
+```
+
+# 3AFC
+
+## 3AFC Across-Subjects
+
+```{r,comment=NA,warning=FALSE,Message=FALSE}
+sess4_3afc_pred$discount <- "No Discount"
+sess4_3afc_pred[(sess4_3afc_pred$discount1 == 99 | sess4_3afc_pred$discount2 == 99 | sess4_3afc_pred$discount3 == 99),"discount"] <- "99 Discount"
+sess4_3afc_pred[(sess4_3afc_pred$discount1 == 25 | sess4_3afc_pred$discount2 == 25 | sess4_3afc_pred$discount3 == 25),"discount"] <- "25 Discount"
+
+sess4_3afc_pred <- sess4_3afc_pred %>% rowwise() %>% 
+  mutate(prob_max = max(prob_1_observed,prob_2_observed,prob_3_observed))
+
+sess4_3afc_pred <- sess4_3afc_pred %>%
+  mutate(prob_max_ddm = case_when(prob_1_observed == prob_max ~ prob_1_ddm,
+                                  prob_2_observed == prob_max ~ prob_2_ddm,
+                                  prob_3_observed == prob_max ~ prob_3_ddm),
+         prob_max_logit = case_when(prob_1_observed == prob_max ~ prob_1_logit,
+                                  prob_2_observed == prob_max ~ prob_2_logit,
+                                  prob_3_observed == prob_max ~ prob_3_logit))
+
+sess4_3afc_pred_plot_1 <- sess4_3afc_pred %>%
+  select(prob_1_observed, prob_1_ddm, prob_1_logit)
+
+sess4_3afc_pred_plot_1_long <- sess4_3afc_pred_plot_1 %>% 
+  pivot_longer(cols = c("prob_1_ddm","prob_1_logit"), 
+               names_to = "model", values_to = "prob_predict")
+
+sess4_3afc_error_plot <- sess4_3afc_pred %>%
+  select(logit_distance,ddm_distance,discount)
+
+sess4_3afc_error_plot_long <- sess4_3afc_error_plot %>% 
+  pivot_longer(cols = c("logit_distance","ddm_distance"), 
+               names_to = "model", values_to = "distance")
+
+sess4_3afc_pred$distance_dif <- sess4_3afc_pred$logit_distance - sess4_3afc_pred$ddm_distance
+summary(sess4_3afc_pred$distance_dif)
+mean(sess4_3afc_pred$logit_distance)
+mean(sess4_3afc_pred$ddm_distance)
+mean(sess4_3afc_pred$distance_dif)
+(mean(sess4_3afc_pred$logit_distance)-mean(sess4_3afc_pred$ddm_distance))/mean(sess4_3afc_pred$logit_distance)
+
+t.test(sess4_3afc_pred$distance_dif)
+bf = ttestBF(x = sess4_3afc_pred$distance_dif)
+bf
+chains = posterior(bf, iterations = 10000)
+summary(chains)
+```
+
+```{r,comment=NA,message=FALSE,warning=FALSE,echo=TRUE}
+setwd(plots_dir)
+
+p_forecasting_share_3afc <- ggplot(data = sess4_3afc_pred_plot_1_long, 
+       mapping = aes(x = prob_1_observed, y = prob_predict, color = model)) + 
+       geom_point(mapping = aes(shape = model,size = 2)) +
+       geom_abline(intercept = 0, slope = 1, linetype = "dashed") + 
+       scale_shape_manual(labels = c("DDM","Logit"), values=c(16, 5))+
+       scale_color_manual(labels = c("DDM","Logit"), values = c(color_ddm,color_logit)) +
+       labs(x = "Observed Choice Share", y = "Predicted Choice Share", 
+            color = "Model",shape = "Model", title = "Forecasting of Ternary Choice Shares") +
+       guides(size = FALSE) +  
+       theme_minimal()  + theme(text = element_text(size = 18),
+                                plot.title = element_text(hjust = 0.5))
+p_forecasting_share_3afc
+save_name_png <- str_c(date_var, "_forecasting_share_3afc.png")
+ggsave(save_name_png,plot = p_forecasting_share_3afc,device="png")
+
+summary_3afc_error_bar <- sess4_3afc_error_plot_long %>% 
+  group_by(model) %>% # the grouping variable
+  summarise(
+    mean_error = mean(distance), # calculates the mean of each group
+    sd_error = sd(distance), # calculates the standard deviation of each group
+    n_error = n(), # calculates the sample size per group
+    SE_error = sd(distance) / sqrt(n())
+  ) # calculates the standard error of each group
+
+p_forecasting_error_3afc <- ggplot(summary_3afc_error_bar, aes(model, mean_error)) +
+  geom_col(aes(fill = model,color=model)) +
+  scale_color_manual(labels = c("DDM","Logit"),values=c(color_ddm, color_logit)) +
+  scale_fill_manual(labels = c("DDM","Logit"),values=c(color_ddm, "white")) +
+  geom_errorbar(aes(ymin = mean_error - SE_error, ymax = mean_error + SE_error), width = 0.2, size = 1) +
+  scale_x_discrete(labels=c("DDM","Logit")) +
+  labs(x = "Model", y = "Average Error", color = "Model", fill = "Model", title = "Error in Ternary Choice Forecasting") +
+  theme_minimal() + theme(text = element_text(size = 18),
+                          plot.title = element_text(hjust = 0.5))
+p_forecasting_error_3afc
+save_name_png <- str_c(date_var, "_forecasting_error_3afc.png")
+ggsave(save_name_png,plot = p_forecasting_error_3afc,device="png")
+```
+
+## 3AFC Revenue
+
+```{r,comment = NA, warninge = FALSE, echo = TRUE}
+setwd(plots_dir)
+
+sess4_3afc_pred$price_1 <- 300 - sess4_3afc_pred$discount1
+sess4_3afc_pred$price_2 <- 300 - sess4_3afc_pred$discount2
+sess4_3afc_pred$price_3 <- 300 - sess4_3afc_pred$discount3
+
+sess4_3afc_pred$revenue_logit_1 <- sess4_3afc_pred$price_1*sess4_3afc_pred$prob_1_logit
+sess4_3afc_pred$revenue_logit_2 <- sess4_3afc_pred$price_2*sess4_3afc_pred$prob_2_logit
+sess4_3afc_pred$revenue_logit_3 <- sess4_3afc_pred$price_3*sess4_3afc_pred$prob_3_logit
+sess4_3afc_pred$revenue_logit <- sess4_3afc_pred$revenue_logit_1 + sess4_3afc_pred$revenue_logit_2 + sess4_3afc_pred$revenue_logit_3
+
+sess4_3afc_pred$revenue_ddm_1 <- sess4_3afc_pred$price_1*sess4_3afc_pred$prob_1_ddm
+sess4_3afc_pred$revenue_ddm_2 <- sess4_3afc_pred$price_2*sess4_3afc_pred$prob_2_ddm
+sess4_3afc_pred$revenue_ddm_3 <- sess4_3afc_pred$price_3*sess4_3afc_pred$prob_3_ddm
+sess4_3afc_pred$revenue_ddm <- sess4_3afc_pred$revenue_ddm_1 + sess4_3afc_pred$revenue_ddm_2 + sess4_3afc_pred$revenue_ddm_3
+
+sess4_3afc_pred$revenue_true_1 <- sess4_3afc_pred$price_1*sess4_3afc_pred$prob_1_observed
+sess4_3afc_pred$revenue_true_2 <- sess4_3afc_pred$price_2*sess4_3afc_pred$prob_2_observed
+sess4_3afc_pred$revenue_true_3 <- sess4_3afc_pred$price_3*sess4_3afc_pred$prob_3_observed
+sess4_3afc_pred$revenue_true <- sess4_3afc_pred$revenue_true_1 + sess4_3afc_pred$revenue_true_2 + sess4_3afc_pred$revenue_true_3
+
+sess4_3afc_pred$revenue_dif_logit_1 <- abs(sess4_3afc_pred$revenue_true_1 - sess4_3afc_pred$revenue_logit_1)
+sess4_3afc_pred$revenue_dif_logit_2 <- abs(sess4_3afc_pred$revenue_true_2 - sess4_3afc_pred$revenue_logit_2)
+sess4_3afc_pred$revenue_dif_logit_3 <- abs(sess4_3afc_pred$revenue_true_3 - sess4_3afc_pred$revenue_logit_3)
+sess4_3afc_pred$revenue_dif_logit <- sess4_3afc_pred$revenue_dif_logit_1 + sess4_3afc_pred$revenue_dif_logit_2 + sess4_3afc_pred$revenue_dif_logit_3
+
+sess4_3afc_pred$revenue_dif_ddm_1 <- abs(sess4_3afc_pred$revenue_true_1 - sess4_3afc_pred$revenue_ddm_1)
+sess4_3afc_pred$revenue_dif_ddm_2 <- abs(sess4_3afc_pred$revenue_true_2 - sess4_3afc_pred$revenue_ddm_2)
+sess4_3afc_pred$revenue_dif_ddm_3 <- abs(sess4_3afc_pred$revenue_true_3 - sess4_3afc_pred$revenue_ddm_3)
+sess4_3afc_pred$revenue_dif_ddm <- sess4_3afc_pred$revenue_dif_ddm_1 + sess4_3afc_pred$revenue_dif_ddm_2 + sess4_3afc_pred$revenue_dif_ddm_3
+
+sess4_3afc_pred$revenue_dif <- sess4_3afc_pred$revenue_dif_logit - sess4_3afc_pred$revenue_dif_ddm
+sess4_3afc_pred$revenue_dif_perc <- 100*(sess4_3afc_pred$revenue_dif/sess4_3afc_pred$revenue_true)
+
+summary_3afc_rev_pred <- sess4_3afc_pred %>% 
+  group_by(discount) %>% summarize(mean_rev_perc_dif = mean(revenue_dif_perc),
+                                   sd_error = sd(revenue_dif_perc),
+                                   n_error = n(),
+                                   SE_error = sd(revenue_dif_perc) / sqrt(n()))
+
+summary_3afc_rev_pred$discount <- fct_relevel(summary_3afc_rev_pred$discount,
+                                                       "No Discount","25 Discount","99 Discount")
+
+p_forecasting_revenue_3afc <- ggplot(summary_3afc_rev_pred, aes(discount, mean_rev_perc_dif)) +
+  geom_col(aes(fill = discount, color = discount),show.legend = FALSE) +
+  scale_color_manual(labels = c("No Discount","$0.25 Discount","$0.99 Discount"),values=c('black',color_discount_25,color_discount_99)) +
+  scale_fill_manual(labels = c("No Discount","$0.25 Discount","$0.99 Discount"),values=c(color_discount_0,color_discount_25,color_discount_99)) +
+  geom_errorbar(aes(ymin = mean_rev_perc_dif - SE_error, ymax = mean_rev_perc_dif + SE_error), width = 0.2, size = 1) +
+  scale_x_discrete(labels=c("No Discount","$0.25 Discount","$0.99 Discount")) +
+  labs(x = "Discount", y = "Average Percentage Improvement for DDM", title = "Revenue in Ternary Choice") +
+  theme_minimal() + theme(text = element_text(size = 18),
+                          plot.title = element_text(hjust = 0.5))
+p_forecasting_revenue_3afc
+save_name_png <- str_c(date_var, "_forecasting_revenue_3afc.png")
+ggsave(save_name_png,plot = p_forecasting_revenue_3afc,device="png")
+
+mean(sess4_3afc_pred$revenue_dif_perc)
+
+summary_3afc_pred_barplot <- sess4_3afc_pred %>% 
+  group_by(discount) %>% summarize(mean_distance_dif = mean(distance_dif),
+                                   sd_error = sd(distance_dif),
+                                   n_error = n(),
+                                   SE_error = sd(distance_dif) / sqrt(n()))
+summary_3afc_pred_barplot$discount <- fct_relevel(summary_3afc_pred_barplot$discount,
+                                                       "No Discount","25 Discount","99 Discount")
+summary_3afc_pred_barplot
+
+p_forecasting_pred_3afc_barplot <- ggplot(summary_3afc_pred_barplot, aes(discount, mean_distance_dif)) +
+  geom_col(aes(fill = discount, color = discount),show.legend = FALSE) +
+  scale_color_manual(labels = c("No Discount","$0.25 Discount","$0.99 Discount"),values=c('black',color_discount_25,color_discount_99)) +
+  scale_fill_manual(labels = c("No Discount","$0.25 Discount","$0.99 Discount"),values=c(color_discount_0,color_discount_25,color_discount_99)) +
+  geom_errorbar(aes(ymin = mean_distance_dif - SE_error, ymax = mean_distance_dif + SE_error), width = 0.2, size = 1) +
+  scale_x_discrete(labels=c("No Discount","$0.25 Discount","$0.99 Discount")) +
+  labs(x = "Discount", y = "Error (Logit - DDM)", title = "Forecasting Error Difference in Ternary Choice") +
+  theme_minimal() + theme(text = element_text(size = 18),
+                          plot.title = element_text(hjust = 0.5))
+p_forecasting_pred_3afc_barplot
+save_name_png <- str_c(date_var, "_forecasting_pred_3afc_barplot.png")
+ggsave(save_name_png,plot = p_forecasting_pred_3afc_barplot,device="png")
+```
+
+# Conditional on Probability
+
+## 2afc
+```{r,comment = NA, warninge = FALSE, echo = TRUE, crop = FALSE}
+setwd(plots_dir)
+
+attach(share_2afc)
+share_2afc $ddm_advantage = logit_distance- ddm_distance 
+share_2afc $largest = pmax( prob_1_d,  prob_2_d)#,share$prob_3)
+share_2afc $smallest = pmin( prob_1_d,  prob_2_d)#,share$prob_3)
+share_2afc $competitiveness = pmax( prob_1_d,  prob_2_d)
+#largest-smallest-(prob_1+ prob_2+ prob_3-largest- smallest)
+detach(share_2afc)
+
+p_forecasting_prob_error_2afc <- ggplot(data = share_2afc, mapping = aes(x = competitiveness, y = ddm_advantage)) + 
+  geom_hline(yintercept=0, linetype="dashed", color = "black") +
+  geom_smooth(color = 'black', method = 'loess', span = 0.60) +
+  labs(x = "Estimated Market Share for the Most Popular Item", y = "Error (Logit - DDM)",
+       title = "Error in Forecasting Binary Choice") +
+  xlim(0.5,1.0) + 
+  theme_minimal() + theme(text = element_text(size = 18),
+                          plot.title = element_text(hjust = 0.5))
+p_forecasting_prob_error_2afc
+save_name_png <- str_c(date_var, "_forecasting_prob_error_2afc.png")
+ggsave(save_name_png,plot = p_forecasting_prob_error_2afc ,device="png")
+```
+
+## 3AFC
+
+```{r,comment=NA, warning = FALSE, echo = TRUE}
+setwd(plots_dir)
+
+attach(share_3afc)
+share_3afc $largest=pmax( prob_1_d,  prob_2_d, prob_3_d)
+#share$smallest=pmin(share$prob_1_d, share$prob_2_d,share$prob_3_d)
+share_3afc $ddm_advantage= logit_distance- ddm_distance 
+share_3afc $competitiveness=pmax( prob_1_d,  prob_2_d, prob_3_d)
+detach(share_3afc)
+
+p_forecasting_prob_error_3afc <- ggplot( data = share_3afc, mapping = aes(x = competitiveness, y = ddm_advantage)) + 
+  geom_hline(yintercept=0, linetype="dashed", color = "black") +
+  geom_smooth(color = 'grey50', method = 'loess', span = 0.60, linetype = "dashed") +
+  labs(x = "Estimated Market Share for the Most Popular Item", y = "Error (Logit - DDM)",
+       title = "Error in Forecasting Ternary Choice") +
+  theme_minimal() + theme(text = element_text(size = 18),
+                          plot.title = element_text(hjust = 0.5))
+p_forecasting_prob_error_3afc
+save_name_png <- str_c(date_var, "_forecasting_prob_error_3afc.png")
+ggsave(save_name_png,plot = p_forecasting_prob_error_3afc ,device="png")
+```
+
+## Combined / Merged Regressions
+
+```{r,comment=NA, echo = TRUE}
+share_2afc['task'] = 'Binary Choice'
+share_2afc$discount_factor <- "00"
+share_2afc[(share_2afc$discount1 == 99 | share_2afc$discount2 == 99),"discount_factor"] <- "99"
+share_2afc[(share_2afc$discount1 == 25 | share_2afc$discount2 == 25),"discount_factor"] <- "25"
+share_2afc$ddm_advantage_scale <- as.numeric(scale(share_2afc$ddm_advantage))
+share_2afc_combine <- share_2afc %>% select(competitiveness,ddm_advantage,ddm_advantage_scale,task,discount_factor)
+
+share_3afc['task'] = 'Ternary Choice'
+share_3afc$discount_factor <- "00"
+share_3afc[(share_3afc$discount1 == 99 | share_3afc$discount2 == 99 | share_3afc$discount3 == 99),"discount_factor"] <- "99"
+share_3afc[(share_3afc$discount1 == 25 | share_3afc$discount2 == 25 | share_3afc$discount3 == 25),"discount_factor"] <- "25"
+share_3afc$ddm_advantage_scale <- as.numeric(scale(share_3afc$ddm_advantage))
+share_3afc_combine <- share_3afc %>% select(competitiveness,ddm_advantage,ddm_advantage_scale,task,discount_factor)
+
+share_combine <- bind_rows(share_2afc_combine,share_3afc_combine)
+
+#merge all three together to get same scale for regression
+sess3_2afc_market$ddm_advantage <- sess3_2afc_market$rmsae_dif
+sess3_2afc_market['task'] = 'Binary Choice Within'
+sess3_2afc_market$ddm_advantage_scale <- as.numeric(scale(sess3_2afc_market$rmsae_dif))
+sess3_2afc_combine <- sess3_2afc_market %>% select(ddm_advantage_scale,task,discount_factor)
+
+share_combine <- share_combine %>% 
+  mutate(discount_not99 = if_else(discount_factor == "99",0,1))
+model_combine <- lm(ddm_advantage_scale ~ task + discount_not99, data = share_combine)
+summary(model_combine)
+```
+
+# Changes in Market Share and Substitution
+
+```{r,comment=NA}
+color_ddm = 'royalblue'
+color_logit = 'red'
+color_mccafe = 'white'
+color_peets = 'grey'
+color_starbucks = 'grey40'
+```
+
+## Cannibalization
+
+```{r,comment=NA,warning=FALSE,message=FALSE}
+cannib_item1 <- cannib_3afc %>% filter(brand_in1_1 == brand_added_1) %>% 
+  select(brand_in1_1, cannib_ae_item1_1_ddm, cannib_ae_item1_1_logit)
+cannib_item1 <- rename(cannib_item1, brand = brand_in1_1)
+cannib_item1 <- rename(cannib_item1, ae_ddm = cannib_ae_item1_1_ddm)
+cannib_item1 <- rename(cannib_item1, ae_logit = cannib_ae_item1_1_logit)
+
+cannib_item2 <- cannib_3afc %>% filter(brand_in2_1 == brand_added_1) %>% 
+  select(brand_in2_1, cannib_ae_item2_1_ddm, cannib_ae_item2_1_logit)
+cannib_item2 <- rename(cannib_item2, brand = brand_in2_1)
+cannib_item2 <- rename(cannib_item2, ae_ddm = cannib_ae_item2_1_ddm)
+cannib_item2 <- rename(cannib_item2, ae_logit = cannib_ae_item2_1_logit)
+
+cannib_combine <- bind_rows(cannib_item1,cannib_item2)
+cannib_combine <- cannib_combine %>% 
+  mutate(sae_ddm = ae_ddm*ae_ddm,
+         sae_logit = ae_logit*ae_logit,
+         ae_dif = ae_logit - ae_ddm)
+
+cannib_barplot <- cannib_combine %>% 
+  group_by(brand) %>% summarize(mean_ddm = mean(ae_ddm),
+                                mean_logit = mean(ae_logit),
+                                  mean_ae_dif = mean(ae_dif),
+                                   sd_error = sd(ae_dif),
+                                   n_error = n(),
+                                   SE_error = sd(ae_dif) / sqrt(n()))
+cannib_barplot
+```
+
+## Entry
+
+```{r,comment=NA,warning=FALSE,message=FALSE}
+entry_item1 <- cannib_3afc %>% filter(brand_in1_1 != brand_added_1) %>% 
+  select(brand_in1_1, cannib_ae_item1_1_ddm, cannib_ae_item1_1_logit)
+entry_item1 <- rename(entry_item1, brand = brand_in1_1)
+entry_item1 <- rename(entry_item1, ae_ddm = cannib_ae_item1_1_ddm)
+entry_item1 <- rename(entry_item1, ae_logit = cannib_ae_item1_1_logit)
+
+entry_item2 <- cannib_3afc %>% filter(brand_in2_1 != brand_added_1) %>% 
+  select(brand_in2_1, cannib_ae_item2_1_ddm, cannib_ae_item2_1_logit)
+entry_item2 <- rename(entry_item2, brand = brand_in2_1)
+entry_item2 <- rename(entry_item2, ae_ddm = cannib_ae_item2_1_ddm)
+entry_item2 <- rename(entry_item2, ae_logit = cannib_ae_item2_1_logit)
+
+entry_combine <- bind_rows(entry_item1,entry_item2)
+entry_combine <- entry_combine %>% 
+  mutate(sae_ddm = ae_ddm*ae_ddm,
+         sae_logit = ae_logit*ae_logit,
+         ae_dif = ae_logit - ae_ddm)
+
+entry_barplot <- entry_combine %>% 
+  group_by(brand) %>% summarize(mean_ddm = mean(ae_ddm),
+                                mean_logit = mean(ae_logit),
+                                mean_ae_dif = mean(ae_dif),
+                                   sd_error = sd(ae_dif),
+                                   n_error = n(),
+                                   SE_error = sd(ae_dif) / sqrt(n()))
+entry_barplot
+```
+
+
+## Stats
+
+```{r,comment=NA,warning=FALSE,message=FALSE}
+t.test(cannib_combine$ae_ddm,cannib_combine$ae_logit,paired = TRUE)
+summary(cannib_combine$ae_dif)
+mean(cannib_combine$ae_logit)
+mean(cannib_combine$ae_ddm)
+(mean(cannib_combine$ae_logit)-mean(cannib_combine$ae_ddm))/mean(cannib_combine$ae_logit)
+summary(lm(ae_dif ~ brand, data = cannib_combine))
+summary(aov(ae_dif ~ brand, data = cannib_combine))
+bf = ttestBF(x = cannib_combine$ae_dif)
+bf
+chains = posterior(bf, iterations = 10000)
+summary(chains)
+
+t.test(entry_combine$ae_ddm,entry_combine$ae_logit, paired = TRUE)
+summary(entry_combine$ae_dif)
+mean(entry_combine$ae_logit)
+mean(entry_combine$ae_ddm)
+(mean(entry_combine$ae_logit)-mean(entry_combine$ae_ddm))/mean(entry_combine$ae_logit)
+summary(lm(ae_dif ~ brand, data = entry_combine))
+summary(aov(ae_dif ~ brand, data = entry_combine))
+bf = ttestBF(x = entry_combine$ae_dif)
+bf
+chains = posterior(bf, iterations = 10000)
+summary(chains)
+```
+
+## Plots
+
+```{r,comment=NA,warning=FALSE,message=FALSE}
+setwd(plots_dir)
+
+p_cannib <- ggplot(cannib_barplot, aes(brand, mean_ae_dif)) +
+  geom_col(aes(fill = brand, color = brand),show.legend = FALSE) +
+  scale_color_manual(values=c('black',color_peets,color_starbucks)) +
+  scale_fill_manual(values=c(color_mccafe,color_peets,color_starbucks)) +
+  geom_errorbar(aes(ymin = mean_ae_dif - SE_error, ymax = mean_ae_dif + SE_error), width = 0.2, size = 1) +
+  labs(x = "Brand Already in Market", y = "Error (Logit - DDM)", title = "Error in Cannibalization Forecasting") +
+  theme_minimal() + theme(text = element_text(size = 18),
+                          plot.title = element_text(hjust = 0.5))
+p_cannib
+save_name_png <- str_c(date_var, "_cannib_brand_existing_barplot_3afc_1.png")
+ggsave(save_name_png,plot = p_cannib,device="png")
+
+p_entry <- ggplot(entry_barplot, aes(brand, mean_ae_dif)) +
+  geom_col(aes(fill = brand, color = brand),show.legend = FALSE) +
+  scale_color_manual(values=c('black',color_peets,color_starbucks)) +
+  scale_fill_manual(values=c(color_mccafe,color_peets,color_starbucks)) +
+  geom_errorbar(aes(ymin = mean_ae_dif - SE_error, ymax = mean_ae_dif + SE_error), width = 0.2, size = 1) +
+  labs(x = "Brand Already in Market", y = "Error (Logit - DDM)", title = "Error in Market Share Change Forecasting") +
+  theme_minimal() + theme(text = element_text(size = 18),
+                          plot.title = element_text(hjust = 0.5))
+p_entry
+save_name_png <- str_c(date_var, "_cannib_brand_newentry_barplot_3afc_1.png")
+ggsave(save_name_png,plot = p_entry,device="png")
+```
+
+## Additional Share Plots
+
+```{r,comment=NA,warning=FALSE,message=FALSE}
+setwd(plots_dir)
+
+cannib_item1_share <- cannib_3afc %>% filter(brand_in1_1 == brand_added_1) %>% 
+  select(brand_in1_1, cannib_item1_1_true, cannib_item1_1_ddm, cannib_item1_1_logit)
+cannib_item1_share <- rename(cannib_item1_share, brand = brand_in1_1)
+cannib_item1_share <- rename(cannib_item1_share, cannib_true = cannib_item1_1_true)
+cannib_item1_share <- rename(cannib_item1_share, cannib_ddm = cannib_item1_1_ddm)
+cannib_item1_share <- rename(cannib_item1_share, cannib_logit = cannib_item1_1_logit)
+
+cannib_item2_share <- cannib_3afc %>% filter(brand_in2_1 == brand_added_1) %>% 
+  select(brand_in2_1, cannib_item2_1_true, cannib_item2_1_ddm, cannib_item2_1_logit)
+cannib_item2_share <- rename(cannib_item2_share, brand = brand_in2_1)
+cannib_item2_share <- rename(cannib_item2_share, cannib_true = cannib_item2_1_true)
+cannib_item2_share <- rename(cannib_item2_share, cannib_ddm = cannib_item2_1_ddm)
+cannib_item2_share <- rename(cannib_item2_share, cannib_logit = cannib_item2_1_logit)
+
+cannib_combine_share <- bind_rows(cannib_item1_share,cannib_item2_share)
+cannib_combine_share <- cannib_combine_share %>%
+  mutate(abs_dif = abs(cannib_true - cannib_logit) - abs(cannib_true - cannib_ddm))
+cannib_combine_share %>% group_by(brand) %>% summarize(ave_cannib = mean(cannib_true),
+                                                      ave_ddm = mean(cannib_ddm),
+                                                      ave_logit = mean(cannib_logit),
+                                                      ave_dif = mean(abs_dif))
+
+cannib_combine_share_long <- cannib_combine_share %>% 
+  pivot_longer(cols = c("cannib_ddm","cannib_logit"), 
+               names_to = "model", values_to = "cannib_predict")
+
+p_scatter_cannib <- ggplot(data = cannib_combine_share_long, 
+       mapping = aes(x = cannib_true, y = cannib_predict, color = model)) + 
+       geom_point(mapping = aes(shape = model,size = 2)) +
+       geom_abline(intercept = 0, slope = 1, linetype = "dashed") + 
+       scale_shape_manual(labels = c("DDM","Logit"), values=c(16, 5))+
+       scale_color_manual(labels = c("DDM","Logit"), values = c(color_ddm,color_logit)) +
+       labs(x = "Observed Cannibalization", y = "Cannibalization Change", 
+            color = "Model",shape = "Model", title = "Change from an Existing Brand Entrant") +
+       guides(size = FALSE) +  
+       theme_minimal()  + theme(text = element_text(size = 18),
+                                plot.title = element_text(hjust = 0.5),
+                                legend.position = c(1,0),
+                                legend.justification = c(1,0)) + 
+       facet_wrap(~brand,ncol = 2)
+p_scatter_cannib
+save_name_png <- str_c(date_var, "_cannib_brand_existing_scatter_3afc_1.png")
+ggsave(save_name_png,plot = p_scatter_cannib,device="png")
+
+p_scatter_cannib <- ggplot(data = cannib_combine_share_long, 
+       mapping = aes(x = cannib_true, y = cannib_predict, color = model)) + 
+       geom_point(mapping = aes(shape = model,size = 2)) +
+       geom_abline(intercept = 0, slope = 1, linetype = "dashed") + 
+       scale_shape_manual(labels = c("DDM","Logit"), values=c(16, 5))+
+       scale_color_manual(labels = c("DDM","Logit"), values = c(color_ddm,color_logit)) +
+       labs(x = "Observed Cannibalization", y = "Predicted Cannibalization", 
+            color = "Model",shape = "Model", title = "Change from an Existing Brand Entrant") +
+       guides(size = FALSE) +  
+       theme_minimal()  + theme(text = element_text(size = 18),
+                                plot.title = element_text(hjust = 0.5))
+p_scatter_cannib
+save_name_png <- str_c(date_var, "_cannib_brand_existing_scatter_all_3afc_1.png")
+ggsave(save_name_png,plot = p_scatter_cannib,device="png")
+
+cannib_combine_share_long_ave <- cannib_combine_share_long %>% 
+  group_by(model,brand) %>% 
+  summarize(ave_true = mean(cannib_true), 
+            ave_predict = mean(cannib_predict),
+            SE_true = sd(cannib_true) / sqrt(n()),
+            SE_predict = sd(cannib_predict)/ sqrt(n()))
+
+entry_item1_share <- cannib_3afc %>% filter(brand_in1_1 != brand_added_1) %>% 
+  select(brand_in1_1, cannib_item1_1_true, cannib_item1_1_ddm, cannib_item1_1_logit)
+entry_item1_share <- rename(entry_item1_share, brand = brand_in1_1)
+entry_item1_share <- rename(entry_item1_share, entry_true = cannib_item1_1_true)
+entry_item1_share <- rename(entry_item1_share, entry_ddm = cannib_item1_1_ddm)
+entry_item1_share <- rename(entry_item1_share, entry_logit = cannib_item1_1_logit)
+
+entry_item2_share <- cannib_3afc %>% filter(brand_in2_1 != brand_added_1) %>% 
+  select(brand_in2_1, cannib_item2_1_true, cannib_item2_1_ddm, cannib_item2_1_logit)
+entry_item2_share <- rename(entry_item2_share, brand = brand_in2_1)
+entry_item2_share <- rename(entry_item2_share, entry_true = cannib_item2_1_true)
+entry_item2_share <- rename(entry_item2_share, entry_ddm = cannib_item2_1_ddm)
+entry_item2_share <- rename(entry_item2_share, entry_logit = cannib_item2_1_logit)
+
+entry_combine_share <- bind_rows(entry_item1_share,entry_item2_share)
+entry_combine_share <- entry_combine_share %>%
+  mutate(abs_dif = abs(entry_true - entry_logit) - abs(entry_true - entry_ddm))
+entry_combine_share %>% group_by(brand) %>% summarize(ave_entry = mean(entry_true),
+                                                      ave_ddm = mean(entry_ddm),
+                                                      ave_logit = mean(entry_logit),
+                                                      ave_dif = mean(abs_dif))
+
+entry_combine_share_long <- entry_combine_share %>% 
+  pivot_longer(cols = c("entry_ddm","entry_logit"), 
+               names_to = "model", values_to = "entry_predict")
+
+p_scatter_newentry <- ggplot(data = entry_combine_share_long, 
+       mapping = aes(x = entry_true, y = entry_predict, color = model)) + 
+       geom_point(mapping = aes(shape = model,size = 2)) +
+       geom_abline(intercept = 0, slope = 1, linetype = "dashed") + 
+       scale_shape_manual(labels = c("DDM","Logit"), values=c(16, 5))+
+       scale_color_manual(labels = c("DDM","Logit"), values = c(color_ddm,color_logit)) +
+       labs(x = "Observed Change", y = "Predicted Change", 
+            color = "Model",shape = "Model", title = "Change from a New Brand Entrant") +
+       guides(size = FALSE) +  
+       theme_minimal()  + theme(text = element_text(size = 18),
+                                plot.title = element_text(hjust = 0.5),
+                                legend.position = c(1,0),
+                                legend.justification = c(1,0)) + 
+  facet_wrap(~brand,ncol = 2)
+p_scatter_newentry
+save_name_png <- str_c(date_var, "_cannib_brand_newentry_scatter_3afc_1.png")
+ggsave(save_name_png,plot = p_scatter_newentry,device="png")
+
+p_scatter_newentry <- ggplot(data = entry_combine_share_long, 
+       mapping = aes(x = entry_true, y = entry_predict, color = model)) + 
+       geom_point(mapping = aes(shape = model,size = 2)) +
+       geom_abline(intercept = 0, slope = 1, linetype = "dashed") + 
+       scale_shape_manual(labels = c("DDM","Logit"), values=c(16, 5))+
+       scale_color_manual(labels = c("DDM","Logit"), values = c(color_ddm,color_logit)) +
+       labs(x = "Observed Change", y = "Predicted Change", 
+            color = "Model",shape = "Model", title = "Change from a New Brand Entrant") +
+       guides(size = FALSE) +  
+       theme_minimal()  + theme(text = element_text(size = 18),
+                                plot.title = element_text(hjust = 0.5))
+p_scatter_newentry
+save_name_png <- str_c(date_var, "_cannib_brand_newentry_scatter_all_3afc_1.png")
+ggsave(save_name_png,plot = p_scatter_newentry,device="png")
+```
+
+# Parameter Estimates 
+
+- Use N = 59 as that is what is included
+
+## Parameters 
+
+```{r,comment = NA}
+nrow(sess3_2afc_subject)
+```
+
+#### NDT
+```{r,comment = NA}
+round(summary(sess3_2afc_subject$NRT_d),digits = 3)
+round(sd(sess3_2afc_subject$NRT_d),digits = 3)
+```
+
+#### Threshold
+```{r,comment = NA}
+round(summary(sess3_2afc_subject$Barrier_d),digit = 3)
+round(sd(sess3_2afc_subject$Barrier_d),digits = 3)
+```
+
+#### Discount 25 (DDM)
+```{r,comment = NA}
+round(summary(sess3_2afc_subject$discount_25_d),digits = 3)
+round(sd(sess3_2afc_subject$discount_25_d),digits = 3)
+```
+
+#### Discount 25 (Logit)
+```{r,comment = NA}
+round(summary(sess3_2afc_subject$discount_25_l),digits = 3)
+round(sd(sess3_2afc_subject$discount_25_l),digits = 3)
+```
+
+#### Discount 99 (DDM)
+```{r,comment = NA}
+round(summary(sess3_2afc_subject$discount_99_d),digits = 3)
+round(sd(sess3_2afc_subject$discount_99_d),digits = 3)
+```
+
+#### Discount 99 (Logit)
+```{r,comment = NA}
+round(summary(sess3_2afc_subject$discount_99_l),digits = 3)
+round(sd(sess3_2afc_subject$discount_99_l),digits = 3)
+```
+
+#### McCafe Cappuccino (DDM)
+```{r,comment = NA}
+round(summary(sess3_2afc_subject$McCafe_Cappuccino_d),digits = 3)
+round(sd(sess3_2afc_subject$McCafe_Cappuccino_d),digits = 3)
+```
+
+#### McCafe Cappuccino (Logit)
+```{r,comment = NA}
+round(summary(sess3_2afc_subject$McCafe_Cappuccino_l),digits = 3)
+round(sd(sess3_2afc_subject$McCafe_Cappuccino_l),digits = 3)
+```
+
+#### McCafe Latte (DDM)
+```{r,comment = NA}
+round(summary(sess3_2afc_subject$McCafe_Latte_d),digits = 3)
+round(sd(sess3_2afc_subject$McCafe_Latte_d),digits = 3)
+```
+
+#### McCafe Latte (Logit)
+```{r,comment = NA}
+round(summary(sess3_2afc_subject$McCafe_Latte_l),digits = 3)
+round(sd(sess3_2afc_subject$McCafe_Latte_l),digits = 3)
+```
+
+#### Peets Cappuccino (DDM)
+```{r,comment = NA}
+round(summary(sess3_2afc_subject$Peets_Cappuccino_d),digits = 3)
+round(sd(sess3_2afc_subject$Peets_Cappuccino_d),digits = 3)
+```
+
+#### Peets Cappuccino (Logit)
+```{r,comment = NA}
+round(summary(sess3_2afc_subject$Peets_Cappuccino_l),digits = 3)
+round(sd(sess3_2afc_subject$Peets_Cappuccino_l),digits = 3)
+```
+
+#### Peets Latte (DDM)
+```{r,comment = NA}
+round(summary(sess3_2afc_subject$Peets_Latte_d),digits = 3)
+round(sd(sess3_2afc_subject$Peets_Latte_d),digits = 3)
+```
+
+#### Peets Latte (Logit)
+```{r,comment = NA}
+round(summary(sess3_2afc_subject$Peets_Latte_l),digits = 3)
+round(sd(sess3_2afc_subject$Peets_Latte_l),digits = 3)
+```
+
+#### Starbucks Cappuccino (DDM)
+```{r,comment = NA}
+round(summary(sess3_2afc_subject$Starbucks_Cappuccino_d),digits = 3)
+round(sd(sess3_2afc_subject$Starbucks_Cappuccino_d),digits = 3)
+```
+
+#### Starbucks Cappuccino (Logit)
+```{r,comment = NA}
+round(summary(sess3_2afc_subject$Starbucks_Cappuccino_l),digits = 3)
+round(sd(sess3_2afc_subject$Starbucks_Cappuccino_l),digits = 3)
+```
+
+#### Starbucks Latte (DDM)
+```{r,comment = NA}
+round(summary(sess3_2afc_subject$Starbucks_Latte_d),digits = 3)
+round(sd(sess3_2afc_subject$Starbucks_Latte_d),digits = 3)
+```
+
+#### Starbucks Latte (Logit)
+```{r,comment = NA}
+round(summary(sess3_2afc_subject$Starbucks_Latte_l),digits = 3)
+round(sd(sess3_2afc_subject$Starbucks_Latte_l),digits = 3)
+```
